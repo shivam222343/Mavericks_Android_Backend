@@ -12,9 +12,21 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: [true, 'Password is required'],
+        required: function () {
+            return this.authProvider === 'local';
+        },
         minlength: [6, 'Password must be at least 6 characters'],
         select: false // Don't return password by default
+    },
+    googleId: {
+        type: String,
+        sparse: true,
+        index: true
+    },
+    authProvider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local'
     },
     displayName: {
         type: String,
@@ -177,6 +189,13 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.getPublicProfile = function () {
     const user = this.toObject();
     delete user.password;
+    if (!user.profilePicture?.url || user.profilePicture.url.includes('dbs85dcb1')) {
+        const seed = encodeURIComponent(user.displayName || user._id.toString());
+        user.profilePicture = {
+            url: `https://api.dicebear.com/9.x/notionists/png?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`,
+            publicId: 'default-ai'
+        };
+    }
     return user;
 };
 

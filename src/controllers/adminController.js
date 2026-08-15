@@ -230,3 +230,52 @@ exports.updateGameConfig = async (req, res) => {
         res.status(500).json({ success: false, message: 'Error updating game config' });
     }
 };
+
+const AppConfig = require('../models/AppConfig');
+
+/**
+ * @desc    Get app config (version info, Play Store URL)
+ * @route   GET /api/admin/app-config
+ * @access  Public (no auth — called before login to check for forced updates)
+ */
+exports.getAppConfig = async (req, res) => {
+    try {
+        let config = await AppConfig.findOne({ key: 'global' });
+        if (!config) {
+            config = await AppConfig.create({ key: 'global' });
+        }
+        res.status(200).json({ success: true, data: config });
+    } catch (error) {
+        console.error('getAppConfig error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching app config' });
+    }
+};
+
+/**
+ * @desc    Update app config (set new minimum version, Play Store URL, etc.)
+ * @route   PUT /api/admin/app-config
+ * @access  Admin only
+ */
+exports.updateAppConfig = async (req, res) => {
+    try {
+        const { minVersionCode, minVersionName, playStoreUrl, updateMessage } = req.body;
+
+        const update = {};
+        if (minVersionCode !== undefined) update.minVersionCode = Number(minVersionCode);
+        if (minVersionName !== undefined) update.minVersionName = minVersionName;
+        if (playStoreUrl !== undefined) update.playStoreUrl = playStoreUrl;
+        if (updateMessage !== undefined) update.updateMessage = updateMessage;
+        update.updatedBy = req.user._id;
+
+        const config = await AppConfig.findOneAndUpdate(
+            { key: 'global' },
+            update,
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        res.status(200).json({ success: true, data: config, message: 'App config updated successfully' });
+    } catch (error) {
+        console.error('updateAppConfig error:', error);
+        res.status(500).json({ success: false, message: 'Error updating app config' });
+    }
+};

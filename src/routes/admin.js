@@ -7,9 +7,14 @@ const {
     changeUserRole,
     sendCustomNotification,
     getGames,
-    updateGameConfig
+    updateGameConfig,
+    getAppConfig,
+    updateAppConfig,
 } = require('../controllers/adminController');
 const { getClubAttendanceReport } = require('../controllers/attendanceReportController');
+
+// Public route — no auth needed (mobile checks version before login)
+router.get('/app-config', getAppConfig);
 
 router.use(protect);
 
@@ -25,5 +30,6 @@ router.post('/send-notification', sendCustomNotification);
 router.post('/games', updateGameConfig);
 router.get('/attendance-report/:clubId', getClubAttendanceReport);
 router.get('/reports', (req, res) => res.json({ message: 'Reports placeholder' }));
+router.put('/app-config', updateAppConfig);
 
 module.exports = router;

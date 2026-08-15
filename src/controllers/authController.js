@@ -621,3 +621,101 @@ exports.getDashboardData = async (req, res) => {
         });
     }
 };
+
+/**
+ * @desc    Authenticate with Google (Sign In / Sign Up)
+ * @route   POST /api/auth/google
+ * @access  Public
+ */
+exports.googleAuth = async (req, res) => {
+    try {
+        const { idToken, googleUser } = req.body;
+        let email, name, picture, sub;
+
+        if (idToken) {
+            let payload;
+            try {
+                const { OAuth2Client } = require('google-auth-library');
+                const client = new OAuth2Client();
+                const ticket = await client.verifyIdToken({ idToken });
+                payload = ticket.getPayload();
+            } catch (verifyErr) {
+                try {
+                    const axios = require('axios');
+                    const tokenInfoRes = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+                    payload = tokenInfoRes.data;
+                } catch (axiosErr) {
+                    console.error('Tokeninfo verification failed:', axiosErr.message);
+                }
+            }
+
+            if (payload && payload.email) {
+                email = payload.email;
+                name = payload.name || payload.given_name || email.split('@')[0];
+                picture = payload.picture;
+                sub = payload.sub;
+            }
+        }
+
+        // Fallback if googleUser object was passed directly
+        if (!email && googleUser && googleUser.email) {
+            email = googleUser.email;
+            name = googleUser.name || googleUser.displayName || email.split('@')[0];
+            picture = googleUser.picture || googleUser.photoUrl;
+            sub = googleUser.id || googleUser.sub;
+        }
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Could not verify Google account details. Please try again.'
+            });
+        }
+
+        // Find existing user by email
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            // Register new Google user
+            user = await User.create({
+                email,
+                displayName: name,
+                googleId: sub,
+                authProvider: 'google',
+                role: email.includes('admin') ? 'admin' : 'member',
+                profilePicture: {
+                    url: picture || `https://api.dicebear.com/9.x/notionists/png?seed=${Math.random().toString(36).substring(7)}&backgroundColor=b6e3f4,c0aede,d1d4f9`,
+                    publicId: 'google-avatar'
+                }
+            });
+        } else {
+            // User exists — update Google ID if missing
+            if (!user.googleId) {
+                user.googleId = sub;
+            }
+            if (picture && (!user.profilePicture?.url || user.profilePicture?.publicId === 'default-ai')) {
+                user.profilePicture = { url: picture, publicId: 'google-avatar' };
+            }
+            await user.save();
+        }
+
+        // Generate JWT token
+        const token = generateToken(user._id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Google authentication successful',
+            data: {
+                user: user.getPublicProfile(),
+                token
+            }
+        });
+    } catch (error) {
+        console.error('Google Auth Controller Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Google authentication failed'
+        });
+    }
+};
+
