@@ -10,6 +10,8 @@ const {
     updateGameConfig,
     getAppConfig,
     updateAppConfig,
+    getUsersPermissions,
+    updateUserClubPermissions,
 } = require('../controllers/adminController');
 const { getClubAttendanceReport } = require('../controllers/attendanceReportController');
 
@@ -25,7 +27,9 @@ router.use(authorize('admin')); // Restrict remaining routes to admin only
 
 router.get('/stats', getStats);
 router.get('/users', getAllUsers);
+router.get('/users-permissions', getUsersPermissions);
 router.put('/users/:id/role', changeUserRole);
+router.put('/users/:userId/club-permissions', updateUserClubPermissions);
 router.post('/send-notification', sendCustomNotification);
 router.post('/games', updateGameConfig);
 router.get('/attendance-report/:clubId', getClubAttendanceReport);

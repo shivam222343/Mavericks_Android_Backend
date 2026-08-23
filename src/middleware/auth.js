@@ -68,7 +68,7 @@ const authorize = (...roles) => {
 };
 
 /**
- * Check if user is admin or subadmin of a specific club
+ * Check if user is overall admin or subadmin/club_admin of a specific club
  */
 const authorizeClubAdmin = async (req, res, next) => {
     try {
@@ -81,9 +81,14 @@ const authorizeClubAdmin = async (req, res, next) => {
             });
         }
 
+        if (req.user.role === 'admin') {
+            req.clubRole = 'admin';
+            return next();
+        }
+
         const userClub = req.user.clubsJoined.find(
-            club => club.clubId.toString() === clubId &&
-                (club.role === 'admin' || club.role === 'alumni')
+            club => club.clubId && club.clubId.toString() === clubId.toString() &&
+                (club.role === 'admin' || club.role === 'club_admin' || club.role === 'alumni')
         );
 
         if (!userClub) {
@@ -94,6 +99,7 @@ const authorizeClubAdmin = async (req, res, next) => {
         }
 
         req.clubRole = userClub.role;
+        req.clubPermissions = userClub.permissions || {};
         next();
     } catch (error) {
         return res.status(500).json({

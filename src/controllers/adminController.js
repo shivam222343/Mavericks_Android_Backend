@@ -75,7 +75,7 @@ exports.getAllUsers = async (req, res) => {
 exports.changeUserRole = async (req, res) => {
     try {
         const { role } = req.body;
-        const ValidRoles = ['member', 'alumni', 'admin', 'user'];
+        const ValidRoles = ['member', 'alumni', 'admin', 'user', 'club_admin'];
 
         if (!ValidRoles.includes(role)) {
             return res.status(400).json({
@@ -107,6 +107,113 @@ exports.changeUserRole = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error updating user role'
+        });
+    }
+};
+
+/**
+ * @desc    Get all users with permissions and populated clubs
+ * @route   GET /api/admin/users-permissions
+ * @access  Admin
+ */
+exports.getUsersPermissions = async (req, res) => {
+    try {
+        const users = await User.find()
+            .select('-password')
+            .populate('clubsJoined.clubId', 'name code logo category description')
+            .sort('-createdAt');
+
+        res.status(200).json({
+            success: true,
+            count: users.length,
+            data: users
+        });
+    } catch (error) {
+        console.error('Get users permissions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching users permissions'
+        });
+    }
+};
+
+/**
+ * @desc    Update a user's role and permissions for a specific club
+ * @route   PUT /api/admin/users/:userId/club-permissions
+ * @access  Admin
+ */
+exports.updateUserClubPermissions = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { clubId, isClubAdmin, permissions } = req.body;
+
+        if (!clubId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Club ID is required'
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Check if user is a member of (joined) this club
+        const clubIndex = user.clubsJoined.findIndex(
+            c => c.clubId && c.clubId.toString() === clubId.toString()
+        );
+
+        if (clubIndex === -1) {
+            return res.status(400).json({
+                success: false,
+                message: 'User must be a member of the club before being assigned as Club Admin or modifying permissions.'
+            });
+        }
+
+        // Update role in club
+        user.clubsJoined[clubIndex].role = isClubAdmin ? 'club_admin' : 'member';
+
+        // Update permissions if provided
+        if (permissions && typeof permissions === 'object') {
+            const currentPerms = user.clubsJoined[clubIndex].permissions || {};
+            user.clubsJoined[clubIndex].permissions = {
+                manage_members: permissions.manage_members ?? currentPerms.manage_members ?? true,
+                manage_events: permissions.manage_events ?? currentPerms.manage_events ?? true,
+                manage_announcements: permissions.manage_announcements ?? currentPerms.manage_announcements ?? true,
+                manage_gallery: permissions.manage_gallery ?? currentPerms.manage_gallery ?? true,
+                manage_resources: permissions.manage_resources ?? currentPerms.manage_resources ?? true,
+                manage_attendance: permissions.manage_attendance ?? currentPerms.manage_attendance ?? true,
+                edit_club_info: permissions.edit_club_info ?? currentPerms.edit_club_info ?? true,
+            };
+        }
+
+        // Update global user.role if applicable
+        const hasAnyClubAdminRole = user.clubsJoined.some(c => c.role === 'club_admin' || c.role === 'admin');
+        if (user.role !== 'admin') {
+            if (hasAnyClubAdminRole) {
+                user.role = 'club_admin';
+            } else if (user.role === 'club_admin') {
+                user.role = 'member';
+            }
+        }
+
+        await user.save();
+        await user.populate('clubsJoined.clubId', 'name code logo category description');
+
+        res.status(200).json({
+            success: true,
+            message: `User permissions for club updated successfully`,
+            data: user.getPublicProfile()
+        });
+    } catch (error) {
+        console.error('Update user club permissions error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Error updating user club permissions'
         });
     }
 };
@@ -258,13 +365,14 @@ exports.getAppConfig = async (req, res) => {
  */
 exports.updateAppConfig = async (req, res) => {
     try {
-        const { minVersionCode, minVersionName, playStoreUrl, updateMessage } = req.body;
+        const { minVersionCode, minVersionName, playStoreUrl, updateMessage, aboutUsBannerUrl } = req.body;
 
         const update = {};
         if (minVersionCode !== undefined) update.minVersionCode = Number(minVersionCode);
         if (minVersionName !== undefined) update.minVersionName = minVersionName;
         if (playStoreUrl !== undefined) update.playStoreUrl = playStoreUrl;
         if (updateMessage !== undefined) update.updateMessage = updateMessage;
+        if (aboutUsBannerUrl !== undefined) update.aboutUsBannerUrl = aboutUsBannerUrl;
         update.updatedBy = req.user._id;
 
         const config = await AppConfig.findOneAndUpdate(

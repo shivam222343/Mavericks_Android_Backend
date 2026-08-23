@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'alumni', 'member', 'user'],
+        enum: ['admin', 'club_admin', 'alumni', 'member', 'user'],
         default: 'user'
     },
     clubsJoined: [{
@@ -73,8 +73,17 @@ const userSchema = new mongoose.Schema({
         },
         role: {
             type: String,
-            enum: ['admin', 'alumni', 'member'],
+            enum: ['admin', 'club_admin', 'alumni', 'member'],
             default: 'member'
+        },
+        permissions: {
+            manage_members: { type: Boolean, default: true },
+            manage_events: { type: Boolean, default: true },
+            manage_announcements: { type: Boolean, default: true },
+            manage_gallery: { type: Boolean, default: true },
+            manage_resources: { type: Boolean, default: true },
+            manage_attendance: { type: Boolean, default: true },
+            edit_club_info: { type: Boolean, default: true }
         },
         joinedAt: {
             type: Date,

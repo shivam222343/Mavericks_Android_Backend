@@ -30,6 +30,11 @@ const appConfigSchema = new mongoose.Schema({
         type: String,
         default: 'A new version of Mavericks is available with exciting features and improvements. Please update to continue.',
     },
+    // Global About Us banner image URL
+    aboutUsBannerUrl: {
+        type: String,
+        default: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80',
+    },
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
